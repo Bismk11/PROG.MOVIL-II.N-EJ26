@@ -1,49 +1,57 @@
 package net.ivanvega.mitelefoniacompose
 
+import android.Manifest
 import android.content.BroadcastReceiver
 import android.content.Context
 import android.content.Intent
 import android.content.IntentFilter
 import android.os.Bundle
-import android.provider.Telephony
-import android.telephony.SmsMessage
+import android.telephony.SmsManager
+import android.telephony.TelephonyManager
 import android.util.Log
+import android.widget.Toast
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
-import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.Spacer
-import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.height
-import androidx.compose.foundation.layout.padding
-import androidx.compose.material3.Button
-import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.OutlinedTextField
-import androidx.compose.material3.Surface
-import androidx.compose.material3.Text
-import androidx.compose.runtime.Composable
-import androidx.compose.runtime.DisposableEffect
+import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.foundation.layout.*
+import androidx.compose.material3.*
+import androidx.compose.runtime.*
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.rememberUpdatedState
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
-import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
-import androidx.lifecycle.viewmodel.compose.viewModel
-
 import net.ivanvega.mitelefoniacompose.ui.theme.MiTelefoniaComposeTheme
 
 class MainActivity : ComponentActivity() {
+
+    private val requestPermissionLauncher = registerForActivityResult(
+        ActivityResultContracts.RequestMultiplePermissions()
+    ) { permissions ->
+        val allGranted = permissions.entries.all { it.value }
+        if (!allGranted) {
+            Toast.makeText(this, "Se requieren permisos para interceptar llamadas y enviar SMS.", Toast.LENGTH_LONG).show()
+        }
+    }
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+
+        requestPermissionLauncher.launch(
+            arrayOf(
+                Manifest.permission.READ_PHONE_STATE,
+                Manifest.permission.READ_CALL_LOG,
+                Manifest.permission.SEND_SMS
+            )
+        )
+
         setContent {
             MiTelefoniaComposeTheme {
-                // A surface container using the 'background' color from the theme
                 Surface(
                     modifier = Modifier.fillMaxSize(),
                     color = MaterialTheme.colorScheme.background
                 ) {
-                    HomeScreen()
+                    AutoReplyScreen()
                 }
             }
         }
@@ -55,11 +63,8 @@ fun SystemBroadcastReceiver(
     systemAction: String,
     onSystemEvent: (intent: Intent?) -> Unit
 ) {
-    // Grab the current context in this part of the UI tree
     val context = LocalContext.current
-    // Safely use the latest onSystemEvent lambda passed to the function
     val currentOnSystemEvent by rememberUpdatedState(onSystemEvent)
-    // If either context or systemAction changes, unregister and register again
     DisposableEffect(context, systemAction) {
         val intentFilter = IntentFilter(systemAction)
         val broadcast = object : BroadcastReceiver() {
@@ -68,7 +73,6 @@ fun SystemBroadcastReceiver(
             }
         }
         context.registerReceiver(broadcast, intentFilter)
-        // When the effect leaves the Composition, remove the callback
         onDispose {
             context.unregisterReceiver(broadcast)
         }
@@ -76,64 +80,65 @@ fun SystemBroadcastReceiver(
 }
 
 @Composable
-fun HomeScreen(homeViewModel: ScreenViewModel = viewModel()) {
+fun AutoReplyScreen() {
+    val context = LocalContext.current
+    val sharedPreferences = remember { context.getSharedPreferences("AutoReplyPrefs", Context.MODE_PRIVATE) }
 
-    SystemBroadcastReceiver(Telephony.Sms.Intents.SMS_RECEIVED_ACTION) { intent ->
-        var strMensaje = ""
-        val bndSMS: Bundle? = intent?.getExtras()
-        val pdus = bndSMS?.get("pdus") as Array<Any>?
-        val smms: Array<SmsMessage?> = arrayOfNulls<SmsMessage>(pdus!!.size)
-        for (i in smms.indices) {
-            smms[i] = SmsMessage.createFromPdu(pdus!![i] as ByteArray)
-            strMensaje +="${"Mensaje: " + smms[i]?.getOriginatingAddress()}\n" +
-                    "${smms[i]?.getMessageBody().toString()}"
+    var targetNumber by remember { mutableStateOf(sharedPreferences.getString("TARGET_NUMBER", "") ?: "") }
+    var replyMessage by remember { mutableStateOf(sharedPreferences.getString("REPLY_MESSAGE", "") ?: "") }
+
+    // Registro a nivel de contexto del receptor de llamadas
+    SystemBroadcastReceiver(TelephonyManager.ACTION_PHONE_STATE_CHANGED) { intent ->
+        val state = intent?.getStringExtra(TelephonyManager.EXTRA_STATE)
+        if (state == TelephonyManager.EXTRA_STATE_RINGING) {
+            val incomingNumber = intent?.getStringExtra(TelephonyManager.EXTRA_INCOMING_NUMBER)
+
+            val savedNumber = sharedPreferences.getString("TARGET_NUMBER", "")
+            val savedMessage = sharedPreferences.getString("REPLY_MESSAGE", "")
+
+            if (!incomingNumber.isNullOrEmpty() && incomingNumber == savedNumber && !savedMessage.isNullOrEmpty()) {
+                try {
+                    val smsManager = SmsManager.getDefault()
+                    smsManager.sendTextMessage(incomingNumber, null, savedMessage, null, null)
+                    Toast.makeText(context, "Respuesta enviada a $incomingNumber", Toast.LENGTH_SHORT).show()
+                } catch (e: Exception) {
+                    Log.e("AutoReply", "Error enviando SMS", e)
+                }
+            }
         }
-        Log.d("MiBroadcastEnEjecucion", strMensaje)
     }
 
     Column(
-        modifier = Modifier
-            .fillMaxSize()
-            .padding(16.dp)
+        modifier = Modifier.fillMaxSize().padding(16.dp),
+        verticalArrangement = Arrangement.Center
     ) {
-        Text(
-            text = "Enviar SMS",
-            style = MaterialTheme.typography.headlineMedium,
-            modifier = Modifier.padding(bottom = 16.dp)
-        )
-
+        Text("Configuración de Auto-Respuesta", style = MaterialTheme.typography.titleLarge)
+        Spacer(Modifier.height(24.dp))
         OutlinedTextField(
-            value = homeViewModel.phoneNumber,
-            onValueChange = { homeViewModel.onPhoneNumberChange(it) },
-            label = { Text("Número de teléfono") },
+            value = targetNumber,
+            onValueChange = { targetNumber = it },
+            label = { Text("Número a responder") },
             modifier = Modifier.fillMaxWidth()
         )
-
-        Spacer(modifier = Modifier.height(8.dp))
-
+        Spacer(Modifier.height(16.dp))
         OutlinedTextField(
-            value = homeViewModel.message,
-            onValueChange = { homeViewModel.onMessageChange(it) },
-            label = { Text("Mensaje") },
-            modifier = Modifier.fillMaxWidth(),
-            minLines = 3
+            value = replyMessage,
+            onValueChange = { replyMessage = it },
+            label = { Text("Mensaje automático") },
+            modifier = Modifier.fillMaxWidth()
         )
-
-        Spacer(modifier = Modifier.height(16.dp))
-
+        Spacer(Modifier.height(32.dp))
         Button(
-            onClick = { homeViewModel.sendSMS() },
+            onClick = {
+                sharedPreferences.edit()
+                    .putString("TARGET_NUMBER", targetNumber.trim())
+                    .putString("REPLY_MESSAGE", replyMessage.trim())
+                    .apply()
+                Toast.makeText(context, "Guardado correctamente", Toast.LENGTH_SHORT).show()
+            },
             modifier = Modifier.fillMaxWidth()
         ) {
-            Text("Enviar SMS")
+            Text("Guardar Configuración")
         }
-    }
-}
-
-@Preview(showBackground = true)
-@Composable
-fun GreetingPreview() {
-    MiTelefoniaComposeTheme {
-        HomeScreen()
     }
 }
