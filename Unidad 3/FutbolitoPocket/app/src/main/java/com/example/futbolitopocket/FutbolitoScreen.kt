@@ -25,7 +25,8 @@ fun FutbolitoPocket() {
 
     // 2. Estados del juego
     var ballPosition by remember { mutableStateOf(Offset(200f, 200f)) }
-    var score by remember { mutableIntStateOf(0) }
+    var scoreTop by remember { mutableIntStateOf(0) }    // Goles del equipo de arriba
+    var scoreBottom by remember { mutableIntStateOf(0) } // Goles del equipo de abajo
     var canvasSize by remember { mutableStateOf(IntSize.Zero) }
 
     val ballRadius = with(LocalDensity.current) { 15.dp.toPx() }
@@ -43,20 +44,30 @@ fun FutbolitoPocket() {
             if (newX < ballRadius) newX = ballRadius
             if (newX > canvasSize.width - ballRadius) newX = canvasSize.width.toFloat() - ballRadius
 
-            // Lógica de Portería (Abajo)
             val center = canvasSize.width / 2f
             val isInGoalRange = newX > (center - goalWidth / 2) && newX < (center + goalWidth / 2)
 
-            if (newY > canvasSize.height - ballRadius) {
+            // Lógica de la portería del equipo de arriba
+            if (newY < ballRadius) {
                 if (isInGoalRange) {
-                    score++ // ¡GOL!
-                    newX = canvasSize.width / 2f // Reset al centro
+                    scoreBottom++ // El equipo de abajo anota en la de arriba
+                    newX = canvasSize.width / 2f
                     newY = canvasSize.height / 2f
                 } else {
-                    newY = canvasSize.height - ballRadius // Rebota
+                    newY = ballRadius // Rebote
                 }
             }
-            if (newY < ballRadius) newY = ballRadius
+
+            // Lógica de la portería del equipo de abajo
+            if (newY > canvasSize.height - ballRadius) {
+                if (isInGoalRange) {
+                    scoreTop++ // El equipo de arriba anota en la de abajo
+                    newX = canvasSize.width / 2f
+                    newY = canvasSize.height / 2f
+                } else {
+                    newY = canvasSize.height - ballRadius // Rebote
+                }
+            }
 
             ballPosition = Offset(newX, newY)
         }
@@ -67,13 +78,14 @@ fun FutbolitoPocket() {
         modifier = Modifier.fillMaxSize().background(Color(0xFF2E7D32)),
         horizontalAlignment = Alignment.CenterHorizontally
     ) {
-        Text(
-            text = "GOLES: $score",
-            color = Color.White,
-            fontSize = 32.sp,
-            fontWeight = FontWeight.Bold,
-            modifier = Modifier.padding(16.dp)
-        )
+        // Marcador Doble
+        Row(
+            modifier = Modifier.fillMaxWidth().padding(16.dp),
+            horizontalArrangement = Arrangement.SpaceEvenly
+        ) {
+            Text("ARRIBA: $scoreTop", color = Color.White, fontSize = 20.sp, fontWeight = FontWeight.Bold)
+            Text("ABAJO: $scoreBottom", color = Color.White, fontSize = 20.sp, fontWeight = FontWeight.Bold)
+        }
 
         Box(
             modifier = Modifier.fillMaxSize().padding(16.dp).onSizeChanged { canvasSize = it }
@@ -82,12 +94,19 @@ fun FutbolitoPocket() {
                 val width = size.width
                 val height = size.height
 
-                // Cancha
+                // Cancha, líneas y círculo central
                 drawRect(Color.White, style = Stroke(5f))
                 drawLine(Color.White, Offset(0f, height/2), Offset(width, height/2), strokeWidth = 5f)
                 drawCircle(Color.White, center = Offset(width/2, height/2), radius = 100f, style = Stroke(5f))
 
-                // Portería Amarilla
+                // Portería del equipo de arriba
+                drawRect(
+                    color = Color.Yellow,
+                    topLeft = Offset(width / 2 - goalWidth / 2, 0f),
+                    size = androidx.compose.ui.geometry.Size(goalWidth, 15f)
+                )
+
+                // Portería del equipo de abajo
                 drawRect(
                     color = Color.Yellow,
                     topLeft = Offset(width / 2 - goalWidth / 2, height - 15f),
