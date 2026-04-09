@@ -33,6 +33,7 @@ import org.osmdroid.util.GeoPoint
 import org.osmdroid.views.MapView
 import org.osmdroid.views.overlay.Marker
 import org.osmdroid.views.overlay.Polyline
+import androidx.compose.ui.graphics.RectangleShape
 
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -106,60 +107,7 @@ fun MapLocationScreen() {
         }
     }
 
-    Column(modifier = Modifier.fillMaxSize()) {
-        //Menú de Configuración de Casa
-        Card(modifier = Modifier.padding(8.dp).fillMaxWidth()) {
-            Column(modifier = Modifier.padding(16.dp)) {
-                Text("Configurar Dirección de Casa", style = MaterialTheme.typography.titleMedium)
-                Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    OutlinedTextField(
-                        value = homeLatText,
-                        onValueChange = { homeLatText = it },
-                        label = { Text("Latitud") },
-                        modifier = Modifier.weight(1f)
-                    )
-                    OutlinedTextField(
-                        value = homeLonText,
-                        onValueChange = { homeLonText = it },
-                        label = { Text("Longitud") },
-                        modifier = Modifier.weight(1f)
-                    )
-                }
-
-                Button(
-                    onClick = {
-                        coroutineScope.launch {
-                            val start = currentLocation
-                            val homeLat = homeLatText.toDoubleOrNull()
-                            val homeLon = homeLonText.toDoubleOrNull()
-
-                            if (start != null && homeLat != null && homeLon != null) {
-                                try {
-                                    val apiKey = "eyJvcmciOiI1YjNjZTM1OTc4NTExMTAwMDFjZjYyNDgiLCJpZCI6IjdlMzExZDRkYjI3MTQzNGY4Yzc2MWMyYTRiNzVhNTA1IiwiaCI6Im11cm11cjY0In0="
-
-                                    //OpenRouteService requiere formato "Longitud,Latitud"
-                                    val startStr = "${start.longitude},${start.latitude}"
-                                    val endStr = "$homeLon,$homeLat"
-
-                                    val response = RetrofitClient.apiService.getDirections(apiKey, startStr, endStr)
-
-                                    if (response.features.isNotEmpty()) {
-                                        val coordinates = response.features[0].geometry.coordinates
-                                        //Se convierte [Lon, Lat] a GeoPoint(Lat, Lon) de Osmdroid
-                                        routePoints = coordinates.map { GeoPoint(it[1], it[0]) }
-                                    }
-                                } catch (e: Exception) {
-                                    e.printStackTrace()
-                                }
-                            }
-                        }
-                    },
-                    modifier = Modifier.padding(top = 8.dp).fillMaxWidth()
-                ) {
-                    Text("Trazar Ruta a Casa")
-                }
-            }
-        }
+    Box(modifier = Modifier.fillMaxSize()) {
 
         //Contenedor del Mapa (Osmdroid en Compose)
         AndroidView(
@@ -205,5 +153,69 @@ fun MapLocationScreen() {
                 mapView.invalidate() //Refrescar el mapa
             }
         )
+
+        //Menú de Configuración de Casa
+        Card(
+            modifier = Modifier
+                .fillMaxWidth(),
+            shape = RectangleShape,
+            elevation = CardDefaults.cardElevation(8.dp) //Sombra
+        ) {
+            Column(modifier = Modifier.padding(16.dp)) {
+                Text("Configurar Dirección de Casa", style = MaterialTheme.typography.titleMedium)
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    OutlinedTextField(
+                        value = homeLatText,
+                        onValueChange = { homeLatText = it },
+                        label = { Text("Latitud") },
+                        modifier = Modifier.weight(1f)
+                    )
+                    OutlinedTextField(
+                        value = homeLonText,
+                        onValueChange = { homeLonText = it },
+                        label = { Text("Longitud") },
+                        modifier = Modifier.weight(1f)
+                    )
+                }
+
+                Button(
+                    onClick = {
+                        coroutineScope.launch {
+                            val start = currentLocation
+                            val homeLat = homeLatText.toDoubleOrNull()
+                            val homeLon = homeLonText.toDoubleOrNull()
+
+                            if (start != null && homeLat != null && homeLon != null) {
+                                try {
+                                    val apiKey = "eyJvcmciOiI1YjNjZTM1OTc4NTExMTAwMDFjZjYyNDgiLCJpZCI6IjdlMzExZDRkYjI3MTQzNGY4Yzc2MWMyYTRiNzVhNTA1IiwiaCI6Im11cm11cjY0In0="
+
+                                    //OpenRouteService requiere formato "Longitud,Latitud"
+                                    val startStr = "${start.longitude},${start.latitude}"
+                                    val endStr = "$homeLon,$homeLat"
+
+                                    val response = RetrofitClient.apiService.getDirections(apiKey, startStr, endStr)
+
+                                    if (response.features.isNotEmpty()) {
+                                        val coordinates = response.features[0].geometry.coordinates
+                                        //Se convierte [Lon, Lat] a GeoPoint(Lat, Lon) de Osmdroid
+                                        routePoints = coordinates.map { GeoPoint(it[1], it[0]) }
+                                    }
+                                } catch (e: Exception) {
+                                    e.printStackTrace()
+                                }
+                            }
+                        }
+                    },
+                    modifier = Modifier
+                        .padding(top = 8.dp)
+                        .fillMaxWidth()
+                ) {
+                    Text("Trazar Ruta a Casa")
+                }
+            }
+        }
     }
 }
