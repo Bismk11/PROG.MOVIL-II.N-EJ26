@@ -55,4 +55,11 @@ dependencies {
     androidTestImplementation(libs.androidx.compose.ui.test.junit4)
     debugImplementation(libs.androidx.compose.ui.tooling)
     debugImplementation(libs.androidx.compose.ui.test.manifest)
+    //Osmdroid para el mapa
+    implementation("org.osmdroid:osmdroid-android:6.1.18")
+    //Servicios de ubicación (FusedLocation)
+    implementation("com.google.android.gms:play-services-location:21.2.0")
+    //Retrofit y Gson para la api de OpenRouteService
+    implementation("com.squareup.retrofit2:retrofit:2.11.0")
+    implementation("com.squareup.retrofit2:converter-gson:2.11.0")
 }
