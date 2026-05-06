@@ -40,6 +40,12 @@ import org.jetbrains.compose.resources.painterResource
 
 data class Country(val name: String, val zone: TimeZone, val image: DrawableResource)
 
+fun safeTimeZoneOf(zoneId: String): TimeZone = try {
+    TimeZone.of(zoneId)
+} catch (_: Exception) {
+    TimeZone.UTC
+}
+
 fun currentTimeAt(location: String, zone: TimeZone): String {
     fun LocalTime.formatted() = "$hour:$minute:$second"
 
@@ -49,13 +55,14 @@ fun currentTimeAt(location: String, zone: TimeZone): String {
     return "The time in $location is ${localTime.formatted()}"
 }
 
-val defaultCountries = listOf(
-    Country("Japan", TimeZone.of("Asia/Tokyo"), Res.drawable.jp),
-    Country("France", TimeZone.of("Europe/Paris"), Res.drawable.fr),
-    Country("Mexico", TimeZone.of("America/Mexico_City"), Res.drawable.mx),
-    Country("Indonesia", TimeZone.of("Asia/Jakarta"), Res.drawable.id),
-    Country("Egypt", TimeZone.of("Africa/Cairo"), Res.drawable.eg)
-)
+val defaultCountries: List<Country>
+    get() = listOf(
+        Country("Japan", safeTimeZoneOf("Asia/Tokyo"), Res.drawable.jp),
+        Country("France", safeTimeZoneOf("Europe/Paris"), Res.drawable.fr),
+        Country("Mexico", safeTimeZoneOf("America/Mexico_City"), Res.drawable.mx),
+        Country("Indonesia", safeTimeZoneOf("Asia/Jakarta"), Res.drawable.id),
+        Country("Egypt", safeTimeZoneOf("Africa/Cairo"), Res.drawable.eg)
+    )
 
 @Composable
 @Preview
